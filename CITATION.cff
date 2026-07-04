@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this instrument or these results, please cite as below."
+title: "Persistence Is Not Accumulation: Erasure, Suppression, and Re-instatement in Online In-Weight Memory for Language Models"
+authors:
+  - family-names: Lin
+    given-names: Xuhao
+    email: linxuhao84@gmail.com
+type: software
+version: v1.0.0
+date-released: 2026-07-05
+repository-code: "https://github.com/linxuhao/inweight-stream"
+license: MIT
+keywords:
+  - continual learning
+  - catastrophic forgetting
+  - LoRA
+  - parametric memory
+  - large language models
+  - replay
+  - elastic weight consolidation
+abstract: >
+  Instrument, raw per-fact timelines, and paper for a streaming audit of online
+  in-weight memory in LLMs: accumulation is re-instatement not persistence;
+  forgetting is erasure or suppression depending on the write protection;
+  error-gated replay recalls 85-96% of a 48-fact day from weights at fixed
+  budget; online fact writes are readout-proximal (a batch/streaming regime flip).
