@@ -82,8 +82,8 @@ selection rule as novel \citep{aljundi2019mir,sure2025,mssr2026}; the contributi
 decomposition of \emph{why} it works: latent (suppressed) misses are cheap to re-instate; erased misses
 are not.
 \item \textbf{A batch/streaming regime flip in layer placement} (\S\ref{sec:layers}): at matched
-adapter capacity, the last third of the stack retains most of full-stack capacity while the first third
-retains almost nothing --- opposite to the early-layer/FFN advantage reported for batch injection
+adapter capacity, the last third of the stack alone matches full-stack replay capacity while the first
+third retains almost nothing --- opposite to the early-layer/FFN advantage reported for batch injection
 \citep{back2026lora} and to mid-stack concentration reported for RL post-training \citep{onelayer2026}
 and locate-then-edit knowledge editing \citep{meng2022rome,meng2023memit}.
 \end{enumerate}
@@ -169,8 +169,9 @@ ewc+replay (miss) & \textbf{46 / 44 / 41} & \textbf{43.7} & 6 & \textbf{94\%} & 
 \caption{48-fact single-pass stream, probes every 2 writes, 3 seeds per row. Recovery is pooled over
 seeds (pinned definition, \S\ref{sec:instrument}); recognition is the final-probe 2-AFC count (chance
 $=24$); a strict margin threshold ($>1$ nat) changes no count by more than 4. $^\dagger$BF numbers are
-from the same instrument prior to the recognition meter; its rank/timescale sweep is flat (2--5/48)
-across $dt\in\{0.1,0.5\}$, cascade depth $\{8,32\}$. Firewall: $+0.00$ in every run.}
+from the same instrument prior to the recognition meter (3-seed finals shown; the released fine-probe
+pair gives 3/6, recovery 10\%); its rank/timescale sweep is flat (2--5/48) across
+$dt\in\{0.1,0.5\}$, cascade depth $\{8,32\}$. Firewall: $+0.00$ in every run.}
 \label{tab:main}
 \end{table}
 
@@ -220,8 +221,8 @@ is precisely a list of latent facts. Without EWC, a missed fact is more often er
 re-learning, not re-instatement, and competes for the same interference budget it is trying to escape.
 Selection-by-priority is well precedented \citep{schaul2015,aljundi2019mir,sure2025,mssr2026}; the
 budget-matched decomposition --- \emph{gating helps exactly insofar as the substrate keeps misses
-latent} --- is, to our knowledge, new, and it is the actionable design rule: \textbf{pair a
-suppression-inducing protector with an error-gated re-instatement schedule.} In cognitive terms the
+latent} --- is, to our knowledge, new, and it suggests a candidate design rule that our results support:
+\textbf{pair a suppression-inducing protector with an error-gated re-instatement schedule.} In cognitive terms the
 composition implements Leitner-style spaced repetition with retrieval practice
 \citep{roediger2006} in weight space; the substrate condition is the part the flash-card analogy does
 not predict.
@@ -236,7 +237,7 @@ not predict.
 \midrule
 naked   & 1.0 & 3.3 & 2.7 & 3.7 \\
 EWC     & 1.3 \hfill (0\%) & 3.7 \hfill (1\%) & 8.0 \hfill (29\%) & 10.7 \hfill (27\%) \\
-replay  & 3.0 \hfill (30\%) & 12.3 \hfill (69\%) & \textbf{21.3} \hfill (74\%) & 19.0--23.5 \hfill (76\%) \\
+replay  & 3.0 \hfill (30\%) & 12.3 \hfill (69\%) & \textbf{21.3} \hfill (74\%) & 19.0 \hfill (76\%) \\
 ewc+replay & --- & 27.7 & 26.0 & 34.3 \\
 \bottomrule
 \end{tabular}
@@ -249,7 +250,9 @@ less.}
 
 Restricting the adapter to matched-capacity 8-layer bands (Table~\ref{tab:layers}) yields a monotone
 depth gradient: the early band is nearly useless for storage under every mechanism; the late band
-alone recovers $\sim$90\% of full-stack replay capacity at a third of the parameters, and it is the only
+alone matches full-stack replay capacity at a third of the parameters (21.3 vs.\ 19.0, and with
+the tightest seed triple in the study, 21/22/21; an earlier superseded pair of full-stack runs of
+the same arm gave 29/18 --- seed variance dominates this comparison), and it is the only
 band in which EWC's suppression-and-recovery behavior exists at all (29\% vs.\ 0--1\%). Restricting to
 the middle band --- the region favored by locate-then-edit knowledge editing
 \citep{meng2022rome,meng2023memit} and by RL layer-contribution analyses \citep{onelayer2026} ---
@@ -329,8 +332,9 @@ synaptic memory consolidation. \emph{Nature Neuroscience}, 19(12).
 \bibitem[Farajtabar et al.(2020)]{farajtabar2020ogd} Farajtabar, M., et al. Orthogonal gradient
 descent for continual learning. \emph{AISTATS} 2020.
 
-\bibitem[Hazard et al.(2025)]{sure2025} Hazard, C., et al. SuRe: Surprise-driven prioritised replay
-for continual LLM learning. arXiv:2511.22367.
+\bibitem[Hazard et al.(2025)]{sure2025} Hazard, H., Fountas, Z., Benfeghoul, M.~A., Oomerjee, A.,
+Wang, J., \& Bou-Ammar, H. SuRe: Surprise-driven prioritised replay for continual LLM learning.
+arXiv:2511.22367.
 
 \bibitem[Hu et al.(2022)]{hu2022lora} Hu, E., et al. LoRA: Low-rank adaptation of large language
 models. \emph{ICLR} 2022.
@@ -354,8 +358,8 @@ and editing factual associations in GPT. \emph{NeurIPS} 2022.
 \bibitem[Meng et al.(2023)]{meng2023memit} Meng, K., et al. Mass-editing memory in a transformer.
 \emph{ICLR} 2023.
 
-\bibitem[MSSR(2026)]{mssr2026} MSSR: Memory-aware adaptive replay for continual LLM fine-tuning.
-arXiv:2603.09892.
+\bibitem[Lu et al.(2026)]{mssr2026} Lu, Y., He, Y., Chen, J., \& Zha, H. MSSR: Memory-aware
+adaptive replay for continual LLM fine-tuning. arXiv:2603.09892.
 
 \bibitem[Robins(1995)]{robins1995} Robins, A. Catastrophic forgetting, rehearsal and pseudorehearsal.
 \emph{Connection Science}, 7(2).
@@ -369,25 +373,29 @@ Prioritized experience replay. \emph{ICLR} 2016. arXiv:1511.05952.
 \bibitem[Toneva et al.(2019)]{toneva2019} Toneva, M., et al. An empirical study of example forgetting
 during deep neural network learning. \emph{ICLR} 2019.
 
-\bibitem[AHN(2025)]{ahn2025} Artificial hippocampus networks for efficient long-context
-modeling. arXiv:2510.07318.
+\bibitem[Fang et al.(2025)]{ahn2025} Fang, Y., Yu, W., Zhong, S., Ye, Q., Xiong, X., \& Wei, L.
+Artificial hippocampus networks for efficient long-context modeling. arXiv:2510.07318.
 
-\bibitem[Unlearning(2025)]{unlearning-deletion} Unlearning isn't deletion: Investigating reversibility
-of machine unlearning in LLMs. arXiv:2505.16831.
+\bibitem[Xu et al.(2025)]{unlearning-deletion} Xu, X., Yue, X., Liu, Y., Ye, Q., Zheng, H., Hu, P.,
+Du, M., \& Hu, H. Unlearning isn't deletion: Investigating reversibility of machine unlearning in
+LLMs. arXiv:2505.16831.
 
-\bibitem[Quantization(2025)]{quantization-unlearning} Catastrophic failure of LLM unlearning via
-quantization. \emph{ICLR} 2025. arXiv:2410.16454.
+\bibitem[Zhang et al.(2025)]{quantization-unlearning} Zhang, Z., Wang, F., Li, X., Wu, Z., Tang, X.,
+Liu, H., He, Q., Yin, W., \& Wang, S. Catastrophic failure of LLM unlearning via quantization.
+\emph{ICLR} 2025. arXiv:2410.16454.
 
-\bibitem[One Layer(2026)]{onelayer2026} Is one layer enough? Training a single transformer layer can match
+\bibitem[Zhang et al.(2026)]{onelayer2026} Zhang, Z., Hu, R., Glentis, A., Li, D., Yau, C.-Y.,
+Lin, H., \& Hong, M. Is one layer enough? Training a single transformer layer can match
 full-parameter RL training. arXiv:2607.01232.
 
 \end{thebibliography}
 
 \appendix
 \section{Reproduction}
-Driver: \texttt{phase5/phase5\_accum.py} (mechanism, \texttt{--layers}, \texttt{--replay-policy},
-recognition margins logged at every probe); analysis with pinned recovery definition:
-\texttt{phase5/analyze\_accum.py}; raw per-fact timelines: \texttt{phase5/results/accum\_*.json}.
-Hyperparameters as in \S\ref{sec:instrument}; seeds 1234/2025/777 throughout.
+Driver: \texttt{accum.py} (mechanism, \texttt{--layers}, \texttt{--replay-policy}, recognition
+margins logged at every probe); \texttt{analyze.py} re-derives all tables from the shipped raw
+per-fact timelines (\texttt{results/accum\_*.json}) with the pinned recovery definition;
+\texttt{reproduce.sh} is the full run matrix. Hyperparameters as in \S\ref{sec:instrument}; seeds
+1234/2025/777 throughout.
 
 \end{document}

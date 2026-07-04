@@ -6,7 +6,7 @@ authors:
     given-names: Xuhao
     email: linxuhao84@gmail.com
 type: software
-version: v1.0.0
+version: v1.0.1
 date-released: 2026-07-05
 repository-code: "https://github.com/linxuhao/inweight-stream"
 license: MIT
