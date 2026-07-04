@@ -1,0 +1,393 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage{microtype}
+
+\title{Persistence Is Not Accumulation:\\ Erasure, Suppression, and Re-instatement\\ in Online In-Weight Memory for Language Models}
+\author{Xuhao Lin\\ \small Independent researcher \quad \texttt{linxuhao84@gmail.com}}
+\date{July 2026 --- v1 (preprint)}
+
+\newcommand{\qwen}{Qwen3.5-2B}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Can a frozen language model accumulate new facts \emph{in its weights}, one at a time, as they arrive?
+We study single-pass online fact streams written into a LoRA adapter on a frozen \qwen{} base, with a
+de-confounded instrument: per-fact recall timelines, a two-alternative recognition probe that separates
+\emph{storage} from \emph{expression}, matched compute budgets, and a capability firewall (adapter-off
+equals base) verified in every run. Four findings. (1)~\textbf{Accumulation is re-instatement, not
+persistence}: median time-to-first-miss is nearly identical (3--8 writes) for every mechanism we test,
+while end-of-stream retention varies by $12\times$; what separates mechanisms is the probability that a
+missed fact is later recovered (4\%--94\%). Half-life is the wrong abstraction for online memory.
+(2)~\textbf{Whether forgetting is erasure or suppression depends on the write protection}: facts
+forgotten under naked sequential writes are unrecognizable (2-AFC at chance), whereas facts forgotten
+under accumulated elastic-weight consolidation (EWC) remain $\sim$84\% recognizable --- suppressed, not
+erased. (3)~\textbf{Error-gated replay converts suppressed facts into expressed ones at zero extra
+budget}: spending an unchanged 4-step replay budget on self-test failures first lifts a summed-Fisher
+EWC + replay composition from $\sim$71\% to \textbf{85--96\%} of a 48-fact day recallable from weights
+alone --- but the same gating barely helps replay without EWC, because there is nothing latent to
+re-instate. (4)~\textbf{Online fact writes are readout-proximal}: restricting the adapter to the last
+third of the stack retains most capacity, while the first third is nearly useless --- the opposite of the
+early-layer placement reported for offline batch knowledge injection, suggesting the answer to ``where
+should LoRA memory live?''\ flips between the batch and streaming regimes. All results are 3-seed
+directions on a single substrate; we release the instrument and raw per-fact timelines.
+\end{abstract}
+
+\section{Introduction}
+
+Language-model agents increasingly ship with external memory --- files, retrieval, context --- while their
+weights stay frozen after deployment. A recurring alternative is to let the agent \emph{write} to a
+parameter-efficient adapter online, one interaction at a time, and consolidate at rest. Recent
+systematic work has audited LoRA-as-memory in the \emph{batch} regime: inject a corpus by multi-epoch
+fine-tuning, measure capacity, saturation, and composition \citep{back2026lora}. That audit explicitly
+defers the regime that deployed agents actually face: a \emph{time-incremental stream}, one fact per
+turn, single pass, no i.i.d.\ shuffling.
+
+This paper is an empirical audit of that streaming regime. The regime is harsh by construction:
+sequential SGD has no mechanism for preserving earlier writes, and interference accumulates. But
+\emph{how} it is harsh turns out to be structured, and the structure is invisible to the aggregate
+accuracy numbers that continual-learning papers usually report. Our instrument therefore records
+\emph{per-fact} trajectories: when each fact is first recalled, when it first fails, whether it ever
+comes back, and --- separately --- whether it remains \emph{recognizable} when it is no longer
+\emph{recallable}.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item \textbf{A de-confounded streaming instrument} (\S\ref{sec:instrument}): 48 collision-free facts
+written one per turn into a LoRA on a frozen base; greedy-recall and 2-AFC recognition probes every 2
+writes; a pinned recovery statistic; compute-matched mechanism comparisons; and a capability firewall
+(adapter-off GSM8K vs.\ base) checked in every run ($+0.00$ in all runs, all mechanisms, all seeds).
+\item \textbf{Accumulation is re-instatement} (\S\ref{sec:reinstatement}): across mechanisms spanning
+$12\times$ in final retention, median time-to-first-miss varies only from 3 to 8 subsequent writes.
+Mechanisms differ almost entirely in recovery-after-miss (4\%--94\%). Survival-time (``half-life'')
+framings of online memory measure the wrong thing.
+\item \textbf{Erasure vs.\ suppression is mechanism-dependent} (\S\ref{sec:suppression}): recognition
+probes show naked-SGD forgetting destroys fact-specific binding (chance-level 2-AFC), while EWC
+forgetting leaves $\sim$84\% of facts discriminable behind a failing recall readout. This connects the
+machine-unlearning observation that ``forgotten'' knowledge is often latent
+\citep{unlearning-deletion,quantization-unlearning,kotha2023} to online continual learning, with a
+mechanism-level answer to \emph{when} each case obtains.
+\item \textbf{Error-gated replay exploits suppression at zero extra cost} (\S\ref{sec:errorgated}):
+with the replay budget held fixed, selecting replay targets by self-test failure lifts the EWC+replay
+composition to 41--46/48 (85--96\%) recallable from weights at end of day. The gain is
+\emph{conditional on the EWC substrate}; miss-gating plain replay is within noise. We do not claim the
+selection rule as novel \citep{aljundi2019mir,sure2025,mssr2026}; the contribution is the budget-matched
+decomposition of \emph{why} it works: latent (suppressed) misses are cheap to re-instate; erased misses
+are not.
+\item \textbf{A batch/streaming regime flip in layer placement} (\S\ref{sec:layers}): at matched
+adapter capacity, the last third of the stack retains most of full-stack capacity while the first third
+retains almost nothing --- opposite to the early-layer/FFN advantage reported for batch injection
+\citep{back2026lora} and to mid-stack concentration reported for RL post-training \citep{onelayer2026}
+and locate-then-edit knowledge editing \citep{meng2022rome,meng2023memit}.
+\end{enumerate}
+
+We present these as \emph{floors and directions}, not ceilings and points: one substrate, synthetic
+facts, 3 seeds per condition on nondeterministic hardware (\S\ref{sec:limits}).
+
+\section{Related work}\label{sec:related}
+
+\textbf{LoRA as knowledge memory (batch regime).} \citet{back2026lora} systematically audit LoRA as a
+parametric memory under multi-epoch injection: capacity scales with rank and saturates; QA-format
+supervision dominates raw text; multi-LoRA composition is bottlenecked by routing and merging. Their
+stated next step --- time-incremental streams where information ``must be stored, retrieved, and revised
+continuously'' --- is precisely the regime studied here, and we find that at least one of their
+operational conclusions (early-layer placement) inverts in it. \textbf{Continual learning and replay
+selection.} Catastrophic forgetting under sequential training is classical
+\citep{mccloskey1989,kirkpatrick2017}. Replay selection by estimated interference (MIR;
+\citealt{aljundi2019mir}), encoding-time surprise (SuRe; \citealt{sure2025}), forgetting-curve schedules
+(MSSR; \citealt{mssr2026}), and prioritized experience replay \citep{schaul2015} all improve on uniform
+replay; our miss-gated rule is a member of this family, applied via generative self-testing, and we
+claim only its interaction with the substrate. Orthogonal-projection methods \citep{farajtabar2020ogd}
+and pseudo-rehearsal \citep{robins1995} bound the design space we sweep. \textbf{Forgetting as
+suppression.} In machine unlearning, ``forgotten'' knowledge is frequently recoverable by quantization,
+benign relearning, or prompting \citep{quantization-unlearning,unlearning-deletion,kotha2023};
+example-level forgetting-and-relearning events are pervasive even in offline training
+\citep{toneva2019}. We import the storage/expression distinction \citep{allenzhu2024} into the online
+regime with a per-fact recognition meter. \textbf{Memory architectures.} Complementary-systems designs
+--- fast weights, sleep-time consolidation, activation-state hippocampi
+\citep{behrouz2024titans,ahn2025} --- motivate but are orthogonal to this audit: we characterize the
+write dynamics such architectures inherit.
+
+\section{The instrument}\label{sec:instrument}
+
+\paragraph{Substrate.} \qwen{} (24 layers), fp32, frozen. One LoRA adapter (rank 64,
+$\alpha{=}128$, all linear modules unless stated) is the sole trainable memory. AdamW, lr $3\times
+10^{-5}$, gradient clip 1.0. Hardware: consumer ROCm GPUs; runs are nondeterministic even at fixed
+seed, so every number below is reported per-seed (seeds 1234/2025/777) and interpreted as a direction.
+
+\paragraph{Stream.} $N{=}48$ facts of the form \emph{``The user's \{attribute\} is \{value\}.''} with
+unique attributes and unique three-syllable pseudoword values (collision-free; unguessable; answers
+cannot be produced without the write). One fact per turn, single pass: 8 gradient steps on the fact
+(loss on value tokens only), then the mechanism's bookkeeping, then (for replay mechanisms) exactly
+$m{=}4$ replay gradient steps on stored past facts. Budgets are identical across mechanisms.
+
+\paragraph{Mechanisms.} \emph{naked}: writes only. \emph{BF}: Benna--Fusi multi-timescale synaptic
+cascade \citep{benna2016} applied to adapter parameters. \emph{EWC}: elastic weight consolidation
+\citep{kirkpatrick2017} in the accumulating regime --- diagonal Fisher of each fact is \emph{summed}
+into a running Fisher (never rebuilt), anchor re-set after each fact, $\lambda{=}300$ (results are
+$\lambda$-robust across 100--1000). \emph{replay}: 4 steps/turn on buffer samples, uniform.
+\emph{ewc+replay}: both. \emph{Selection policy}: uniform, or \emph{miss} --- replay targets are drawn
+first from facts that failed the most recent self-test, filled uniformly. The self-test is the recall
+probe itself; the information it uses (which stored facts currently fail) is available to any deployed
+agent that keeps a log of what it wrote.
+
+\paragraph{Probes.} Every 2 writes, all facts so far are probed. \emph{Recall}: greedy completion of
+the cloze prefix; substring match on the value. \emph{Recognition}: sum log-probability margin of the
+true value vs.\ a fixed distractor value sampled from the \emph{same stream} --- the distractor was
+written into the same adapter with the same procedure, so a positive margin measures fact-specific
+binding, not token familiarity. Chance is 24/48. \emph{Recovery} (pinned definition): a fact is a
+recovery candidate if it was recalled at some probe and missed at a later one; it recovered if it is
+recalled again after its first miss. \emph{Firewall}: GSM8K (10-item fixed subset) with the adapter
+disabled, before and after the stream; any deviation from the base score indicates capability damage.
+
+\section{Results}
+
+\subsection{Accumulation is re-instatement, not persistence}\label{sec:reinstatement}
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{lccccc}
+\toprule
+mechanism & final recall /48 (seeds) & mean & median first-miss & recovery & recognized /48 \\
+\midrule
+naked            & 4 / 4 / 3    & 3.7  & 3   & 4\%  & 33 / 23 / 26 \\
+BF cascade$^\dagger$ & 4 / 3 / 5 & 4.0 & 5   & 10--15\% & --- \\
+EWC ($\lambda$300) & 5 / 18 / 9 & 10.7 & 5   & 27\% & 38 / 45 / 38 \\
+replay (uniform) & 24 / 16 / 17 & 19.0 & 5   & 76\% & 45 / 40 / 45 \\
+replay (miss)    & 15 / 28 / 27 & 23.3 & 4   & 87\% & 45 / 46 / 46 \\
+ewc+replay (uniform) & 32 / 42 / 29 & 34.3 & 8 & 76\% & 47 / 48 / 46 \\
+ewc+replay (miss) & \textbf{46 / 44 / 41} & \textbf{43.7} & 6 & \textbf{94\%} & \textbf{48 / 48 / 48} \\
+\bottomrule
+\end{tabular}
+\caption{48-fact single-pass stream, probes every 2 writes, 3 seeds per row. Recovery is pooled over
+seeds (pinned definition, \S\ref{sec:instrument}); recognition is the final-probe 2-AFC count (chance
+$=24$); a strict margin threshold ($>1$ nat) changes no count by more than 4. $^\dagger$BF numbers are
+from the same instrument prior to the recognition meter; its rank/timescale sweep is flat (2--5/48)
+across $dt\in\{0.1,0.5\}$, cascade depth $\{8,32\}$. Firewall: $+0.00$ in every run.}
+\label{tab:main}
+\end{table}
+
+Table~\ref{tab:main} spans a $12\times$ range in final retention (3.7 to 43.7 of 48). If mechanisms
+differed by making facts \emph{persist} longer, time-to-first-miss would covary with that range. It
+does not: the median fact first fails 3--8 writes after acquisition \emph{under every mechanism}. What
+covaries with retention is what happens \emph{after} the first miss: under naked writes 4\% of missed
+facts ever return; under uniform replay 76\%; under the error-gated composition 94\%. End-of-stream
+alive counts (pooled over 3 seeds, /144) tell the same story: naked 11, EWC 32, replay 57, composition
+103, error-gated composition 131.
+
+Online in-weight memory in this regime is therefore not a leaky tank whose drain rate mechanisms
+adjust; it is a \emph{flickering} store in which nearly everything falls below the recall threshold
+quickly, and capacity is determined by the re-instatement process. Aggregate accuracy and half-life
+statistics --- the standard reporting in this literature --- cannot see this structure; per-fact timelines
+can. The same dynamic is known \emph{inside} offline training as example forgetting events
+\citep{toneva2019}: shuffled multi-epoch training is, in effect, a built-in re-instatement schedule.
+Our results show the online regime obeys the same law, with the schedule made explicit and paid for.
+
+\subsection{Forgetting is erasure or suppression, depending on the write rule}\label{sec:suppression}
+
+The recognition column of Table~\ref{tab:main} dissociates two kinds of forgetting. Under naked writes,
+recognition of the full stream is at or near chance (23--33 vs.\ chance 24): when recall of a fact
+dies, its fact-specific binding is gone --- \emph{erasure}. Under accumulated EWC, recall is poor (10.7)
+but recognition is far above chance (38--45 of 48, $\sim$84\%): most ``forgotten'' facts remain
+discriminable --- \emph{suppression} below the generative readout, not destruction. Replay-based
+mechanisms recognize 40--48 while recalling 16--46; the error-gated composition recognizes
+\emph{everything} (48/48/48) while recalling 41--46.
+
+This gives a mechanism-level answer to a question the unlearning literature has raised from the other
+side --- ``is forgotten knowledge deleted or hidden?''
+\citep{unlearning-deletion,quantization-unlearning}: \emph{it depends on what protected the weights
+while subsequent writes arrived}. Unprotected interference deletes; Fisher-anchored interference hides.
+The practical consequence is \S\ref{sec:errorgated}.
+
+\subsection{Error-gated replay: same budget, $+9$ facts, and why}\label{sec:errorgated}
+
+Holding the replay budget fixed at 4 steps/turn and changing only \emph{selection} --- replay facts that
+failed the agent's most recent self-test first --- lifts the composition from 32/42/29 to
+\textbf{46/44/41} of 48 (85--96\% of the day held in weights at day's end), with recovery-after-miss
+rising from 76\% to 94\%. The same gating applied to replay \emph{without} EWC moves the mean only from
+19.0 to 23.3 with overlapping seed ranges and one unstable run.
+
+The recognition data explain the asymmetry. On the EWC substrate, missed facts are suppressed but
+latent ($\sim$84\% recognizable), so a targeted gradient step re-instates them cheaply; the miss list
+is precisely a list of latent facts. Without EWC, a missed fact is more often erased; replaying it is
+re-learning, not re-instatement, and competes for the same interference budget it is trying to escape.
+Selection-by-priority is well precedented \citep{schaul2015,aljundi2019mir,sure2025,mssr2026}; the
+budget-matched decomposition --- \emph{gating helps exactly insofar as the substrate keeps misses
+latent} --- is, to our knowledge, new, and it is the actionable design rule: \textbf{pair a
+suppression-inducing protector with an error-gated re-instatement schedule.} In cognitive terms the
+composition implements Leitner-style spaced repetition with retrieval practice
+\citep{roediger2006} in weight space; the substrate condition is the part the flash-card analogy does
+not predict.
+
+\subsection{Online writes are readout-proximal: a regime flip}\label{sec:layers}
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{lcccc}
+\toprule
+& early (0--7) & mid (8--15) & late (16--23) & all 24 \\
+\midrule
+naked   & 1.0 & 3.3 & 2.7 & 3.7 \\
+EWC     & 1.3 \hfill (0\%) & 3.7 \hfill (1\%) & 8.0 \hfill (29\%) & 10.7 \hfill (27\%) \\
+replay  & 3.0 \hfill (30\%) & 12.3 \hfill (69\%) & \textbf{21.3} \hfill (74\%) & 19.0--23.5 \hfill (76\%) \\
+ewc+replay & --- & 27.7 & 26.0 & 34.3 \\
+\bottomrule
+\end{tabular}
+\caption{Mean final recall /48 (3 seeds; recovery-\% in parentheses) with the adapter restricted to
+8-layer bands at matched rank and parameter count (14.5M) vs.\ the full stack ($\sim$43M). The
+late-band composition recognizes 48/48/47 while recalling 26 --- the band stores fully and expresses
+less.}
+\label{tab:layers}
+\end{table}
+
+Restricting the adapter to matched-capacity 8-layer bands (Table~\ref{tab:layers}) yields a monotone
+depth gradient: the early band is nearly useless for storage under every mechanism; the late band
+alone recovers $\sim$90\% of full-stack replay capacity at a third of the parameters, and it is the only
+band in which EWC's suppression-and-recovery behavior exists at all (29\% vs.\ 0--1\%). Restricting to
+the middle band --- the region favored by locate-then-edit knowledge editing
+\citep{meng2022rome,meng2023memit} and by RL layer-contribution analyses \citep{onelayer2026} ---
+\emph{hurts} every protected mechanism relative to the full stack.
+
+This is the opposite of the batch-regime placement finding, where early-layer/FFN adapters memorize
+best under multi-epoch injection \citep{back2026lora}. The two results are compatible: multi-epoch
+optimization can afford to build features early in the stack, while a single-pass gradient on a novel
+token binding takes the shortest path to the output margin --- late layers, where our unique pseudoword
+targets are nearly orthogonal. We flag the open readout confound: our early/mid band runs predate the
+recognition meter, so we cannot yet distinguish ``early bands store nothing'' from ``early bands store
+without expressing''; the late-band composition's full recognition at reduced recall shows the meter
+can separate these.
+
+\subsection{The firewall holds everywhere}
+
+In every run of every mechanism, band, and policy (including all compositions), disabling the adapter
+returns exactly the base model's GSM8K score ($0.70 \to 0.70$ on the fixed 10-item subset). Online
+writing at any tested intensity costs the frozen base nothing, by construction --- the architectural
+premise (frozen capability, disposable memory cartridges) survives its hardest workload to date.
+
+\section{Discussion}\label{sec:discussion}
+
+\textbf{For memory-agent design.} The numbers argue for a specific division of labor: an external log
+(``the file'') as ground truth and \emph{syllabus}, and an in-weight day store trained from it by
+error-gated re-instatement --- with the log also supplying the self-tests. The day store is then best
+understood not as a transcript but as a \emph{familiarity index}: in the strongest configuration it
+recognizes 100\% of the day while recalling 85--96\%, and in weaker configurations the recognition
+surplus is exactly what re-grounding against the log can exploit. \textbf{For theory.} A first-order
+scale-invariance argument says per-write ``gentleness'' cannot create accumulation (shrinking the step
+shrinks a fact's own margin and its interference on others proportionally); only write \emph{geometry}
+and \emph{re-instatement schedules} can. Our mechanism ladder is a walk along exactly those two levers,
+and linear-attention fast-weight memories --- which meta-learn their write geometry offline
+\citep{ahn2025} --- can be read as the activation-state solution to the same problem.
+\textbf{For the unlearning debate.} Erasure and suppression are both real and separable by a cheap
+2-AFC meter; arguments about whether forgetting ``really'' deletes should condition on the write-time
+protection regime.
+
+\section{Limitations}\label{sec:limits}
+
+Single substrate (\qwen{}); results are directions, not calibrated magnitudes, on nondeterministic
+ROCm hardware with 3 seeds per condition. The stream is synthetic and collision-free; real facts
+correlate, conflict, and get revised. Recall probes are form-matched to the writes (this inflates all
+absolute recall numbers; it is held constant across comparisons); paraphrase probing is future work.
+The self-test that gates replay is the measurement probe, making probe frequency (here every 2 writes)
+a mechanism hyperparameter we have not yet swept. Early/mid band runs lack recognition data. The
+firewall subset is small (10 GSM8K items). BF rows predate the recognition meter. The composition's
+uniform baseline spans 29--42 across five runs; seed variance is the dominant uncertainty throughout.
+
+\section{Conclusion}
+
+On a single-pass fact stream, in-weight memory does not persist --- it flickers, and it accumulates
+exactly to the degree that something re-instates it. Whether the flicker hides or destroys information
+is set by the write-time protector, and an error-gated schedule can harvest hidden facts at no extra
+cost, to 85--96\% of a day. Where the writes land matters and inverts between batch and streaming
+regimes. All of this is invisible to aggregate accuracy; the per-fact instrument is the contribution we
+most hope others reuse.
+
+\begin{thebibliography}{99}\small
+
+\bibitem[Aljundi et al.(2019)]{aljundi2019mir} Aljundi, R., et al. Online continual learning with
+maximally interfered retrieval. \emph{NeurIPS} 2019.
+
+\bibitem[Allen-Zhu \& Li(2024)]{allenzhu2024} Allen-Zhu, Z., \& Li, Y. Physics of language models:
+Part 3.1, knowledge storage and extraction. \emph{ICML} 2024.
+
+\bibitem[Back et al.(2026)]{back2026lora} Back, S., Lee, D., Kang, N., Lee, T., Hong, S.~K., Gwon, Y.,
+\& Ahn, S. Understanding LoRA as knowledge memory: An empirical analysis. \emph{ICML} 2026.
+arXiv:2603.01097.
+
+\bibitem[Behrouz et al.(2024)]{behrouz2024titans} Behrouz, A., Zhong, P., \& Mirrokni, V. Titans:
+Learning to memorize at test time. arXiv:2501.00663.
+
+\bibitem[Benna \& Fusi(2016)]{benna2016} Benna, M.~K., \& Fusi, S. Computational principles of
+synaptic memory consolidation. \emph{Nature Neuroscience}, 19(12).
+
+\bibitem[Farajtabar et al.(2020)]{farajtabar2020ogd} Farajtabar, M., et al. Orthogonal gradient
+descent for continual learning. \emph{AISTATS} 2020.
+
+\bibitem[Hazard et al.(2025)]{sure2025} Hazard, C., et al. SuRe: Surprise-driven prioritised replay
+for continual LLM learning. arXiv:2511.22367.
+
+\bibitem[Hu et al.(2022)]{hu2022lora} Hu, E., et al. LoRA: Low-rank adaptation of large language
+models. \emph{ICLR} 2022.
+
+\bibitem[Kirkpatrick et al.(2017)]{kirkpatrick2017} Kirkpatrick, J., et al. Overcoming catastrophic
+forgetting in neural networks. \emph{PNAS}, 114(13).
+
+\bibitem[Kotha et al.(2024)]{kotha2023} Kotha, S., Springer, J.~M., \& Raghunathan, A. Understanding
+catastrophic forgetting in language models via implicit inference. \emph{ICLR} 2024. arXiv:2309.10105.
+
+\bibitem[McClelland et al.(1995)]{mcclelland1995} McClelland, J.~L., McNaughton, B.~L., \& O'Reilly,
+R.~C. Why there are complementary learning systems in the hippocampus and neocortex. \emph{Psych.\
+Review}, 102(3).
+
+\bibitem[McCloskey \& Cohen(1989)]{mccloskey1989} McCloskey, M., \& Cohen, N.~J. Catastrophic
+interference in connectionist networks. \emph{Psychology of Learning and Motivation}, 24.
+
+\bibitem[Meng et al.(2022)]{meng2022rome} Meng, K., Bau, D., Andonian, A., \& Belinkov, Y. Locating
+and editing factual associations in GPT. \emph{NeurIPS} 2022.
+
+\bibitem[Meng et al.(2023)]{meng2023memit} Meng, K., et al. Mass-editing memory in a transformer.
+\emph{ICLR} 2023.
+
+\bibitem[MSSR(2026)]{mssr2026} MSSR: Memory-aware adaptive replay for continual LLM fine-tuning.
+arXiv:2603.09892.
+
+\bibitem[Robins(1995)]{robins1995} Robins, A. Catastrophic forgetting, rehearsal and pseudorehearsal.
+\emph{Connection Science}, 7(2).
+
+\bibitem[Roediger \& Karpicke(2006)]{roediger2006} Roediger, H.~L., \& Karpicke, J.~D. Test-enhanced
+learning: Taking memory tests improves long-term retention. \emph{Psychological Science}, 17(3).
+
+\bibitem[Schaul et al.(2015)]{schaul2015} Schaul, T., Quan, J., Antonoglou, I., \& Silver, D.
+Prioritized experience replay. \emph{ICLR} 2016. arXiv:1511.05952.
+
+\bibitem[Toneva et al.(2019)]{toneva2019} Toneva, M., et al. An empirical study of example forgetting
+during deep neural network learning. \emph{ICLR} 2019.
+
+\bibitem[AHN(2025)]{ahn2025} Artificial hippocampus networks for efficient long-context
+modeling. arXiv:2510.07318.
+
+\bibitem[Unlearning(2025)]{unlearning-deletion} Unlearning isn't deletion: Investigating reversibility
+of machine unlearning in LLMs. arXiv:2505.16831.
+
+\bibitem[Quantization(2025)]{quantization-unlearning} Catastrophic failure of LLM unlearning via
+quantization. \emph{ICLR} 2025. arXiv:2410.16454.
+
+\bibitem[One Layer(2026)]{onelayer2026} Is one layer enough? Training a single transformer layer can match
+full-parameter RL training. arXiv:2607.01232.
+
+\end{thebibliography}
+
+\appendix
+\section{Reproduction}
+Driver: \texttt{phase5/phase5\_accum.py} (mechanism, \texttt{--layers}, \texttt{--replay-policy},
+recognition margins logged at every probe); analysis with pinned recovery definition:
+\texttt{phase5/analyze\_accum.py}; raw per-fact timelines: \texttt{phase5/results/accum\_*.json}.
+Hyperparameters as in \S\ref{sec:instrument}; seeds 1234/2025/777 throughout.
+
+\end{document}
