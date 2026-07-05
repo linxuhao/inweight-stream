@@ -21,4 +21,25 @@ for s in 1234 2025 777; do
   done
   run --mech ewcreplay --layers late --firewall-n 10 --seed $s
 done
+# n=5 compositions (extra seeds)
+for s in 7 42; do
+  run --mech ewcreplay --firewall-n 10 --seed $s
+  run --mech ewcreplay --replay-policy miss --firewall-n 10 --seed $s
+done
+# self-test cadence sweep (probe-every doubles as self-test cadence for miss policy)
+for pe in 6 12; do
+  for s in 1234 2025 777; do
+    python accum.py --n-stream 48 --probe-every $pe --dev $DEV --mech ewcreplay --replay-policy miss --firewall-n 10 --seed $s
+  done
+done
+# substrate transfer (hyperparameters unchanged)
+M=HuggingFaceTB/SmolLM2-1.7B-Instruct
+for s in 1234 2025 777; do
+  run --model $M --mech naked --seed $s
+  run --model $M --mech ewc --seed $s
+  run --model $M --mech replay --seed $s
+  run --model $M --mech replay --replay-policy miss --seed $s
+  run --model $M --mech ewcreplay --firewall-n 10 --seed $s
+  run --model $M --mech ewcreplay --replay-policy miss --firewall-n 10 --seed $s
+done
 python analyze.py

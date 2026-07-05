@@ -1,6 +1,6 @@
 """accum result analysis: finals + re-instatement (recovery) stats + first-miss + recognition, per arm.
 
-PINNED definitions (the ones behind every number in the paper's tables):
+PINNED definitions (the ones behind every number in the paper tables):
 - recovery: a fact is a recovery CANDIDATE if it was recalled at some probe and later missed one; it
   RECOVERED if it is recalled again at any probe after its first miss. recovery-% =
   recovered/candidates, pooled over seeds.
