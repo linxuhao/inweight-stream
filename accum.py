@@ -264,7 +264,7 @@ def main():
                   "n": len(gs_items)}
         print(f"[accum {args.mech}] FIREWALL base={fw['gsm8k_base']:.2f} -> off={fw['gsm8k_off']:.2f} "
               f"(damage {fw['gsm8k_base']-fw['gsm8k_off']:+.2f})")
-    out = {"mech": args.mech, "n_stream": args.n_stream, "ws": args.ws, "rank": args.rank,
+    out = {"mech": args.mech, "model": args.model, "n_stream": args.n_stream, "ws": args.ws, "rank": args.rank,
            "levels": N, "dt": args.dt, "ewc_lambda": args.ewc_lambda, "local_frac": args.local_frac,
            "replay_m": args.replay_m, "probe_every": args.probe_every, "seed": args.seed,
            "layers": args.layers, "lora_layers": lora_layers, "replay_policy": args.replay_policy,
@@ -281,6 +281,8 @@ def main():
         tag += f"_L{args.layers}"
     if args.replay_policy != "uniform":
         tag += f"_P{args.replay_policy}"
+    if args.model != "Qwen/Qwen3.5-2B":
+        tag += "_M" + args.model.split("/")[-1].replace("-", "").replace(".", "")[:14]
     fn = f"accum_{args.mech}{tag}_n{args.n_stream}_pe{args.probe_every}_s{args.seed}.json"
     json.dump(out, open(os.path.join(args.out, fn), "w"), indent=2)
     print(f"[accum] saved {fn}")
