@@ -37,7 +37,7 @@ def stats(path):
 
 if __name__ == "__main__":
     for mech in ["naked", "bf_N32_dt0.5", "ewc_l300", "replay", "ewcreplay_l300"]:
-        for arm in ["", "_Learly", "_Lmid", "_Llate", "_Pmiss", "_Llate_Pmiss"]:
+        for arm in ["", "_Learly", "_Lmid", "_Llate", "_Pmiss", "_Llate_Pmiss", "_Fcounterfact", "_Pmiss_Fcounterfact"]:
             files = sorted(glob.glob(os.path.join(R, f"accum_{mech}{arm}_n48_pe2_s*.json")))
             if not files:
                 continue
@@ -49,8 +49,11 @@ if __name__ == "__main__":
             fm = [x for r in rows for x in r[5]]
             med_fm = statistics.median(fm) if fm else float("nan")
             fw = [f"{r[4].get('gsm8k_base')}->{r[4].get('gsm8k_off')}" for r in rows if r[4]]
-            nrec = [json.load(open(f))["curve"][-1].get("n_recognized") for f in files]
+            finals = [json.load(open(f))["curve"][-1] for f in files]
+            nrec = [c.get("n_recognized") for c in finals]
+            para = ["%d/%d" % (sum(h for h in c["para_hits"] if h), sum(1 for h in c["para_hits"] if h is not None))
+                    for c in finals if c.get("para_hits")]
             print(f"{mech:16s} {arm or '_all':12s} n={len(files)}  final={fin} mean={sum(fin)/len(fin):5.1f}  "
                   f"first-miss(med)={med_fm:g}  alive={alive}/{48*len(files)}  "
                   f"recover={tot_r}/{tot_m} ({pct:.0f}%)  recog={nrec}"
-                  + (f"  firewall={fw}" if fw else ""))
+                  + (f"  para={para}" if para else "") + (f"  firewall={fw}" if fw else ""))

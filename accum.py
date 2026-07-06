@@ -34,6 +34,7 @@ ap.add_argument("--local-frac", type=float, default=0.15) # fraction of params a
 ap.add_argument("--replay-m", type=int, default=4)        # small buffer: facts replayed per turn
 ap.add_argument("--layers", default="all")  # all | early | mid | late (thirds) | "a-b" inclusive layer range
 ap.add_argument("--replay-policy", choices=["uniform", "miss"], default="uniform")  # miss: spend replay on last-probe failures (error-gated re-instatement)
+ap.add_argument("--facts", choices=["synthetic", "counterfact"], default="synthetic")  # counterfact: real-entity counterfactual edits (azhx/counterfact) + free paraphrase probe
 ap.add_argument("--probe-every", type=int, default=6)
 ap.add_argument("--seed", type=int, default=1234)
 ap.add_argument("--dev", default="cuda:0")
@@ -67,6 +68,30 @@ def make_facts(n, seed):
                 seen.add(v); break
         facts.append({"fid": i, "statement": f"The user's {attrs[i]} is {v}.", "answer": v})
     assert len({f["answer"] for f in facts}) == n
+    return facts
+
+
+def make_counterfact(n, seed):
+    """n CounterFact edits as stream facts: write the counterfactual target_new (base cannot
+    produce it from prior knowledge -> recall requires the write). Unique subjects + answers;
+    first paraphrase prompt kept for the end-of-stream paraphrase probe."""
+    from datasets import load_dataset
+    ds = load_dataset("azhx/counterfact", split="train")
+    rng = random.Random(seed)
+    idx = list(range(len(ds))); rng.shuffle(idx)
+    facts, seen_ans, seen_subj = [], set(), set()
+    for i in idx:
+        rw = ds[i]["requested_rewrite"]
+        subj, ans = rw["subject"], rw["target_new"]["str"]
+        prompt = rw["prompt"].format(subj)
+        if ans in seen_ans or subj in seen_subj or ans in prompt:
+            continue
+        para = (ds[i]["paraphrase_prompts"] or [None])[0]
+        facts.append({"fid": len(facts), "statement": f"{prompt} {ans}.", "answer": ans, "para": para})
+        seen_ans.add(ans); seen_subj.add(subj)
+        if len(facts) == n:
+            break
+    assert len(facts) == n
     return facts
 
 
@@ -180,7 +205,8 @@ def cfg(n_layers=None):
 def main():
     global LP, HIDDEN
     L.check_env(); torch.manual_seed(args.seed)
-    facts = make_facts(args.n_stream, args.seed)
+    facts = (make_counterfact(args.n_stream, args.seed) if args.facts == "counterfact"
+             else make_facts(args.n_stream, args.seed))
     tok = AutoTokenizer.from_pretrained(args.model)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
@@ -250,6 +276,21 @@ def main():
             nrec = sum(1 for m in margins if m > 0)
             curve.append({"k": k + 1, "cumrecall": round(cr, 3), "n_recalled": round(cr * (k + 1), 1),
                           "hits": hits, "margins": margins, "n_recognized": nrec})
+            if k == len(facts) - 1 and args.facts == "counterfact":
+                model.eval(); ph = []
+                with torch.no_grad():
+                    for f in facts:
+                        if not f.get("para"):
+                            ph.append(None); continue
+                        ids = tok(f["para"], return_tensors="pt").to(DEV)
+                        g = model.generate(**ids, max_new_tokens=12, do_sample=False,
+                                           pad_token_id=tok.pad_token_id)
+                        comp = tok.decode(g[0][ids["input_ids"].shape[1]:],
+                                          skip_special_tokens=True).split("\n")[0]
+                        ph.append(int(L.contains_match_ci(f["answer"], comp)))
+                curve[-1]["para_hits"] = ph
+                print(f"  [{args.mech}] paraphrase recall: "
+                      f"{sum(h for h in ph if h)}/{sum(1 for h in ph if h is not None)}")
             print(f"  [{args.mech}] after {k+1:2d} facts: cumrecall(1..{k+1})={cr:.3f} "
                   f"(~{cr*(k+1):.0f} of {k+1} held, {nrec} recognized)")
 
@@ -268,6 +309,7 @@ def main():
            "levels": N, "dt": args.dt, "ewc_lambda": args.ewc_lambda, "local_frac": args.local_frac,
            "replay_m": args.replay_m, "probe_every": args.probe_every, "seed": args.seed,
            "layers": args.layers, "lora_layers": lora_layers, "replay_policy": args.replay_policy,
+           "facts_src": args.facts,
            "final_n_recognized": final["n_recognized"],
            "curve": curve, "firewall": fw,
            "final_cumrecall": final["cumrecall"], "final_n_recalled": final["n_recalled"]}
@@ -283,6 +325,8 @@ def main():
         tag += f"_P{args.replay_policy}"
     if args.model != "Qwen/Qwen3.5-2B":
         tag += "_M" + args.model.split("/")[-1].replace("-", "").replace(".", "")[:14]
+    if args.facts != "synthetic":
+        tag += f"_F{args.facts}"
     fn = f"accum_{args.mech}{tag}_n{args.n_stream}_pe{args.probe_every}_s{args.seed}.json"
     json.dump(out, open(os.path.join(args.out, fn), "w"), indent=2)
     print(f"[accum] saved {fn}")

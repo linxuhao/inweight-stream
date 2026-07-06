@@ -40,8 +40,11 @@ dose--response in self-test cadence and vanishes by one test per 12 writes. (4)~
 gradient of online writes is an expression gradient, not a storage gradient}: recall capacity
 concentrates in the last third of the stack (opposite to the early-layer placement reported for
 offline batch injection), yet recognition shows the middle third \emph{stores} nearly as much as the
-full stack while expressing a quarter of it. Results are multi-seed directions with per-seed numbers
-throughout; we release the instrument and raw per-fact timelines.
+full stack while expressing a quarter of it. A real-entity CounterFact stream replicates the mechanism ladder and
+recovery ordering at higher absolute levels, and its paraphrase prompts expose a \emph{three-tier
+readout hierarchy}: recognition ($\approx$100\%) $\gg$ write-form recall ($\sim$90\%) $\gg$
+paraphrase recall (12--31\%). Results are multi-seed directions with per-seed numbers throughout; we
+release the instrument and raw per-fact timelines.
 \end{abstract}
 
 \section{Introduction}
@@ -136,7 +139,10 @@ interpreted as a direction.
 unique attributes and unique three-syllable pseudoword values (collision-free; unguessable; answers
 cannot be produced without the write). One fact per turn, single pass: 8 gradient steps on the fact
 (loss on value tokens only), then the mechanism's bookkeeping, then (for replay mechanisms) exactly
-$m{=}4$ replay gradient steps on stored past facts. Budgets are identical across mechanisms.
+$m{=}4$ replay gradient steps on stored past facts. Budgets are identical across mechanisms. A second
+stream variant (\S\ref{sec:cf}) draws 48 real-entity counterfactual edits from CounterFact
+\citep{meng2022rome} with unique subjects and targets, keeping the ``recall requires the write''
+property while adding real tokens and dataset paraphrase prompts.
 
 \paragraph{Mechanisms.} \emph{naked}: writes only. \emph{BF}: Benna--Fusi multi-timescale synaptic
 cascade \citep{benna2016} applied to adapter parameters. \emph{EWC}: elastic weight consolidation
@@ -292,6 +298,43 @@ and re-extract them over many passes, faces no such expression bottleneck. Wheth
 early-layer memories show the same storage/expression split is an open question our instrument could
 answer in their regime.
 
+\subsection{A real-fact stream: CounterFact and the readout hierarchy}\label{sec:cf}
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{lccccc}
+\toprule
+mechanism (CounterFact) & recall /48 (seeds) & mean & recovery & recognized & paraphrase /48 \\
+\midrule
+naked            & 20 / 10 / 11 & 13.7 & 34\% & 47 / 39 / 37 & 5 / 6 / 6 \\
+EWC ($\lambda$300) & 33 / 35 / 43 & 37.0 & 46\% & 48 / 46 / 48 & 5 / 4 / 8 \\
+replay (uniform) & 44 / 36 / 39 & 39.7 & 75\% & 48 / 48 / 47 & \textbf{20 / 10 / 15} \\
+ewc+replay (uniform) & 46 / 46 / 42 & 44.7 & 84\% & 48 $\times$ 3 & 10 / 10 / 16 \\
+ewc+replay (miss) & \textbf{47 / 47 / 43} & \textbf{45.7} & \textbf{87\%} & 48 $\times$ 3 & 9 / 10 / 12 \\
+\bottomrule
+\end{tabular}
+\caption{\qwen{} on 48 CounterFact edits (unique subjects and targets; the counterfactual target
+cannot be produced from prior knowledge, so recall still requires the write). Paraphrase = greedy
+recall from the dataset's first paraphrase prompt, final probe. Firewall $0.70 \to 0.70$.}
+\label{tab:cf}
+\end{table}
+
+Replacing the synthetic stream with 48 real-entity counterfactual edits from CounterFact
+\citep{meng2022rome} (Table~\ref{tab:cf}) preserves every ordering: the mechanism ladder, the
+recovery gradient (34\% $\to$ 87\%), full recognition behind the compositions, and the firewall.
+Absolute levels are far higher (naked 13.7 vs.\ 3.7; composition near ceiling at 44.7--45.7):
+real-token targets sit on the model's output manifold and are simply easier to write, and the
+near-ceiling regime compresses the miss-gating gain to $+1.0$ --- selection matters when there is
+headroom. The new measurement is the \emph{paraphrase} column: the same adapters that recall
+$\sim$90--95\% in the write form and recognize $\sim$100\% answer only \textbf{12--31\%} of
+paraphrase prompts. Together the three probes expose a readout hierarchy --- \textbf{recognition
+$\gg$ write-form recall $\gg$ paraphrase recall} --- which turns this paper's form-matching caveat
+into a measured quantity and sharpens the central theme: what online writes create is overwhelmingly
+\emph{latent, form-bound} binding; generalized expression is the scarcest resource. Notably,
+paraphrase generalization does not track write-form recall (plain replay is best at 31\%; the
+EWC-anchored arms skew verbatim), a single-comparison observation we flag for follow-up rather than
+claim.
+
 \subsection{Substrate transfer: structure replicates, magnitudes do not}\label{sec:substrate}
 
 \begin{table}[t]
@@ -357,10 +400,11 @@ re-instatement $\gg$ lossy self-re-instatement $\gg$ none.
 
 Two small substrates, one hyperparameter setting (tuned on the first); per-substrate magnitudes do
 not transfer (\S\ref{sec:substrate}) and are floors. Results are directions on nondeterministic ROCm
-hardware with 3--5 seeds per condition. The stream is synthetic and collision-free; real facts
-correlate, conflict, and get revised --- revision streams (e.g., CounterFact-style) are future work.
-Recall probes are form-matched to the writes (this inflates all absolute recall numbers; it is held
-constant across comparisons); paraphrase probing is future work. The self-test that gates replay is
+hardware with 3--5 seeds per condition. The main stream is synthetic and collision-free; the CounterFact stream adds real entities but not
+\emph{revision} (the same key rewritten) or conflict, which remain future work. Recall probes are
+form-matched to the writes; the CounterFact paraphrase probe quantifies the resulting inflation
+(write-form $\sim$90\% vs.\ paraphrase 12--31\%) but paraphrase-based training targets were not
+explored. The self-test that gates replay is
 the measurement probe; we characterized its cadence (\S\ref{sec:errorgated}) but a
 measurement-independent self-test would be cleaner. Late-band single-mechanism runs lack recognition
 data. The firewall subset is small (10 GSM8K items) and near-trivial on \smol{} (base 0.40). BF rows
@@ -374,7 +418,8 @@ information is set by the write-time protector; an error-gated schedule can harv
 no extra cost --- to 85--96\% of a day --- but only while its self-tests are fresh. Where writes land
 matters for \emph{expression} far more than for \emph{storage}, and the recall advantage of late
 layers inverts the placement folklore of the batch regime. The structure replicates across two
-substrates even where the magnitudes do not. All of this is invisible to aggregate accuracy; the
+substrates and a real-fact stream even where the magnitudes do not, and paraphrase probing locates
+the true bottleneck at generalized expression: recognition $\gg$ write-form recall $\gg$ paraphrase. All of this is invisible to aggregate accuracy; the
 per-fact instrument is the contribution we most hope others reuse.
 
 \begin{thebibliography}{99}\small

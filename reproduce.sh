@@ -42,4 +42,12 @@ for s in 1234 2025 777; do
   run --model $M --mech ewcreplay --firewall-n 10 --seed $s
   run --model $M --mech ewcreplay --replay-policy miss --firewall-n 10 --seed $s
 done
+# real-fact stream (CounterFact) + paraphrase probe
+for s in 1234 2025 777; do
+  run --facts counterfact --mech naked --seed $s
+  run --facts counterfact --mech ewc --seed $s
+  run --facts counterfact --mech replay --seed $s
+  run --facts counterfact --mech ewcreplay --firewall-n 10 --seed $s
+  run --facts counterfact --mech ewcreplay --replay-policy miss --firewall-n 10 --seed $s
+done
 python analyze.py
