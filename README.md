@@ -17,11 +17,18 @@ streaming regime with per-fact instrumentation and find:
    replay steps/turn on self-test failures first: **41–46 of 48 facts (85–96%)** recallable from
    weights at end of stream, recovery 94%. The gain requires the EWC substrate (latent misses);
    miss-gating plain replay is within noise.
-4. **Online writes are readout-proximal.** At matched adapter capacity, the last third of the stack
-   retains ~90% of full-stack replay capacity; the first third is nearly useless — the opposite of the
-   early-layer placement reported for offline batch injection (Back et al., ICML 2026).
+4. **The depth gradient is an expression gradient, not a storage gradient.** Recall concentrates in
+   the last third of the stack (opposite of the early-layer placement reported for batch injection,
+   Back et al. ICML 2026) — but recognition shows the middle third *stores* near full-stack levels
+   while expressing a quarter of it.
+5. **Error-gating needs fresh self-tests** (dose–response): the gain at one self-test per 2 writes
+   (44.2/48) decays to uniform-replay level by one per 6, and further by one per 12.
+6. **Structure transfers, magnitudes don't** (SmolLM2-1.7B-Instruct, hyperparameters unchanged):
+   ladder/recovery/latency replicate; EWC-alone recalls 0/48 while recognizing above chance.
+7. **A real-entity CounterFact stream** replicates the ladder at higher levels and exposes a
+   three-tier readout hierarchy: recognition (~100%) ≫ write-form recall (~90%) ≫ paraphrase (12–31%).
 
-Capability firewall in every run: adapter-off GSM8K == base (+0.00), all mechanisms, all seeds.
+Capability firewall in every run: adapter-off GSM8K == base (+0.00), both substrates, all mechanisms and seeds.
 
 ## Repository layout
 
@@ -56,14 +63,17 @@ Every run writes a JSON of per-fact recall hits and recognition margins at every
 
 ## Honest notes (also in the paper's Limitations)
 
-- Single substrate (Qwen3.5-2B, fp32, eager attention). Results are **directions**, not calibrated
-  magnitudes: our GPUs (consumer ROCm) are nondeterministic even at fixed seed; every condition has
-  3 seeds (1234 / 2025 / 777) and per-seed numbers are always reported.
-- The fact stream is synthetic and collision-free by design (unguessable pseudoword values — recall
-  cannot be faked); real facts correlate and get revised.
-- Recall probes are form-matched to the writes; this inflates absolute recall for all arms equally.
+- Two substrates (Qwen3.5-2B primary; SmolLM2-1.7B-Instruct with hyperparameters carried over
+  unchanged), fp32, eager attention. Results are **directions**, not calibrated magnitudes: our GPUs
+  (consumer ROCm) are nondeterministic even at fixed seed; 3–5 seeds per condition (1234/2025/777,
+  +7/42 for the n=5 compositions) and per-seed numbers are always reported.
+- The main stream is synthetic and collision-free (unguessable pseudoword values — recall cannot be
+  faked); the CounterFact stream adds real entities (counterfactual targets stay unguessable) but not
+  revision/conflict.
+- Recall probes are form-matched to the writes; the CounterFact paraphrase probe measures the
+  resulting inflation (write-form ~90% vs paraphrase 12–31%).
 - The self-test that gates replay is the measurement probe (information any agent with a log of its
-  own writes has); probe frequency is therefore a mechanism hyperparameter (every 2 writes here).
+  own writes has); its cadence is a mechanism hyperparameter, swept at 2/6/12 writes.
 - `results/pre_recog_2026-07-04/` holds the pre-recognition-meter baseline runs that the shipped
   re-runs superseded (kept for provenance).
 
