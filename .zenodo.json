@@ -7,7 +7,7 @@
       "orcid": "0009-0007-1183-6144"
     }
   ],
-  "version": "v2.1.0",
+  "version": "v2.1.1",
   "description": "Instrument, raw per-fact timelines (128 runs), and paper v2 for a streaming audit of online in-weight memory in LLMs, on two substrates (Qwen3.5-2B, SmolLM2-1.7B-Instruct) plus a real-entity CounterFact stream. Findings: (1) accumulation is re-instatement, not persistence -- median time-to-first-miss is ~3-8 writes for every mechanism while end-of-stream retention varies by 12x, separated by recovery-after-miss (4-94%); (2) forgetting is erasure or suppression depending on the write protection (2-AFC recognition: naked SGD at/near chance; accumulated EWC recalls nothing on the second substrate while recognizing well above chance); (3) error-gated replay converts suppressed facts to expressed ones at fixed budget -- 85-96% of a 48-fact day recallable from weights (n=5 seeds) -- with a clean dose-response in self-test cadence; (4) the depth gradient of online writes is an expression gradient, not a storage gradient. The CounterFact stream replicates the ladder and its paraphrase prompts expose a three-tier readout hierarchy: recognition (~100%) >> write-form recall (~90%) >> paraphrase recall (12-31%). Capability firewall (adapter-off = base) +0.00 in every run. Per-seed numbers throughout.",
   "license": "MIT",
   "keywords": [
