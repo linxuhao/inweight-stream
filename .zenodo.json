@@ -1,7 +1,6 @@
 {
   "title": "Persistence Is Not Accumulation: Erasure, Suppression, and Re-instatement in Online In-Weight Memory for Language Models (instrument, results, and paper v2)",
-  "upload_type": "publication",
-  "publication_type": "preprint",
+  "upload_type": "software",
   "creators": [
     {
       "name": "Lin, Xuhao",
@@ -30,6 +29,11 @@
       "relation": "isSupplementTo",
       "identifier": "https://github.com/linxuhao/inweight-stream",
       "resource_type": "software"
+    },
+    {
+      "relation": "isSupplementTo",
+      "identifier": "10.5281/zenodo.21232648",
+      "resource_type": "publication-preprint"
     }
   ]
 }
