@@ -1,8 +1,8 @@
 # Persistence Is Not Accumulation
 
-Code, raw results, and paper for:
+Code and raw results for:
 
-> **Persistence Is Not Accumulation: Erasure, Suppression, and Re-instatement in Online In-Weight Memory for Language Models** (v1 preprint, July 2026 — [paper/inweight_stream_v1.pdf](paper/inweight_stream_v1.pdf))
+> **Persistence Is Not Accumulation: Erasure, Suppression, and Re-instatement in Online In-Weight Memory for Language Models** (under double-blind review)
 
 Can a frozen LLM accumulate facts **in its weights**, one at a time, single pass? We audit that
 streaming regime with per-fact instrumentation and find:
@@ -31,7 +31,6 @@ lib.py                # shared machinery (probes, GSM8K firewall eval, templates
 analyze.py            # reproduces the paper tables from results/ (pinned recovery definition)
 gsm8k_pilot_ids.json  # frozen 10-item GSM8K firewall subset (indices into openai/gsm8k test)
 results/              # raw per-fact timelines (JSON) for every run in the paper
-paper/                # LaTeX source + PDF
 reproduce.sh          # the full run matrix (~50 runs × ~5–8 min on one 24GB GPU)
 ```
 
@@ -68,16 +67,5 @@ Every run writes a JSON of per-fact recall hits and recognition margins at every
 - `results/pre_recog_2026-07-04/` holds the pre-recognition-meter baseline runs that the shipped
   re-runs superseded (kept for provenance).
 
-## Citation
 
-```bibtex
-@article{lin2026persistence,
-  title={Persistence Is Not Accumulation: Erasure, Suppression, and Re-instatement
-         in Online In-Weight Memory for Language Models},
-  author={Lin, Xuhao},
-  year={2026},
-  note={Preprint v1}
-}
-```
-
-MIT license (see LICENSE).
+MIT license (see LICENSE). Anonymized for review.
