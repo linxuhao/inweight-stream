@@ -7,8 +7,8 @@ authors:
     email: linxuhao84@gmail.com
     orcid: "https://orcid.org/0009-0007-1183-6144"
 type: software
-version: v1.0.2
-date-released: 2026-07-05
+version: v2.1.0
+date-released: 2026-07-07
 repository-code: "https://github.com/linxuhao/inweight-stream"
 license: MIT
 keywords:

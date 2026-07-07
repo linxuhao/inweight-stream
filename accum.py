@@ -1,13 +1,14 @@
-"""phase5_accum.py — does ONLINE per-turn learning ACCUMULATE distinct facts? (true HL-2 / accumulation)
+"""accum.py -- the streaming in-weight memory instrument.
 
-The cleonic-thesis test we never ran. Stream N distinct collision-free facts ONE PER TURN (single-pass
-OCL). After writing fact k, probe CUMULATIVE recall of facts 1..k. Does the recallable count GROW
-(accumulation) or plateau (~1.5-batch FIFO)? Compare mechanisms head-to-head:
-  naked  : plain online LoRA writes (the Phase-3 floor)
-  bf     : Benna-Fusi multi-timescale cascade (metaplasticity)
-  ewc    : STANDARD accumulated EWC (running theta*+Fisher; NOT the re-anchor variant that froze)
+Stream N distinct collision-free facts ONE PER TURN into a LoRA adapter on a frozen base (single-pass
+online continual learning). After writing fact k, probe cumulative recall AND 2-AFC recognition of
+facts 1..k. Does the recallable count grow (accumulation) or plateau? Compare mechanisms head-to-head:
+  naked  : plain online LoRA writes (the floor)
+  bf     : Benna-Fusi multi-timescale synaptic cascade (metaplasticity)
+  ewc    : accumulated EWC (running summed Fisher + re-anchored theta*)
   local  : sparse per-fact masking (each fact writes a different ~local_frac subspace)
-  replay : small replay buffer (= the file; SOTA's strongest baseline)
+  replay : small replay buffer, uniform or --replay-policy miss (error-gated)
+Every run also checks the capability firewall (--firewall-n>0: adapter-off GSM8K vs base).
 
 Run:  python accum.py --mech ewcreplay --replay-policy miss --firewall-n 10 --seed 1234 --dev cuda:0
 """

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Full run matrix for the paper (~50 runs, ~5-8 min each on one 24GB GPU).
+# Full run matrix for the paper (~94 runs, ~5-8 min each on one 24GB GPU).
 # AMD ROCm note: export HSA_OVERRIDE_GFX_VERSION=11.0.0 on RDNA3.
 set -e
 DEV=${1:-cuda:0}
