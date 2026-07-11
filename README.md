@@ -89,6 +89,11 @@ writes between a fact's write and its first miss · `alive` = pooled last-probe 
 `recover` = recovered/candidates (recovery definition pinned in the docstring) · `recog` = final
 2-AFC counts · `para` = paraphrase recall (CF runs).
 
+**Hardware note**: the code is standard PyTorch + transformers + peft — it runs on NVIDIA/CUDA
+as-is (`--dev cuda:0` is the same device string under ROCm, which is simply what *our* GPUs were).
+The ROCm remarks in this repo describe our measurement hardware, not a requirement; expect exact
+numbers to differ on any hardware (they differ across our own seeds too).
+
 ## Honest notes (also in the paper's Limitations)
 
 - Two substrates (Qwen3.5-2B primary; SmolLM2-1.7B-Instruct with hyperparameters carried over
