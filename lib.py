@@ -45,8 +45,9 @@ def set_seed(seed: int = SEED_PILOT):
 
 
 def check_env():
-    if os.environ.get("HSA_OVERRIDE_GFX_VERSION") != "11.0.0":
-        warnings.warn("HSA_OVERRIDE_GFX_VERSION!=11.0.0 — required on this rig (RDNA3/ROCm).")
+    # ROCm-only: our AMD RDNA3 rig needs this override; harmless/ignored elsewhere.
+    if getattr(torch.version, "hip", None) and os.environ.get("HSA_OVERRIDE_GFX_VERSION") != "11.0.0":
+        warnings.warn("ROCm detected without HSA_OVERRIDE_GFX_VERSION=11.0.0 (needed on RDNA3).")
 
 
 def apply_chat(tok, user_content: str) -> str:
