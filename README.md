@@ -61,6 +61,36 @@ python accum.py --mech replay --layers late                   --seed 1234   # de
 Every run writes a JSON of per-fact recall hits and recognition margins at every probe to `results/`
 (filenames encode all swept parameters).
 
+### Driver flags
+
+| flag | values (default first) | meaning |
+|---|---|---|
+| `--mech` | naked · bf · ewc · local · replay · ewcreplay | write-protection mechanism |
+| `--replay-policy` | uniform · miss | replay selection (miss = error-gated by the last self-test) |
+| `--layers` | all · early · mid · late · `a-b` | restrict the adapter to a layer band |
+| `--facts` | synthetic · counterfact | fact source (counterfact downloads via HF `datasets`; adds a paraphrase probe) |
+| `--model` | Qwen/Qwen3.5-2B · any HF causal LM | substrate (non-default is encoded in the filename) |
+| `--probe-every` | 2 | probe/self-test cadence in writes (the §4.3 sweep variable) |
+| `--firewall-n` | 0 | >0: GSM8K items for the adapter-off firewall check |
+| `--n-stream --ws --rank --lr --ewc-lambda --replay-m --seed` | 48 · 8 · 64 · 3e-5 · 300 · 4 · 1234 | stream/opt hyperparameters |
+
+### Result JSON schema
+
+Filenames encode every swept parameter, e.g. `accum_ewcreplay_l300_Pmiss_MSmolLM217BInst_n48_pe2_s777.json`
+= mech+λ, miss policy, SmolLM2 substrate, 48 facts, probe-every-2, seed 777. Fields:
+
+- top level: all hyperparameters, `final_n_recalled`, `final_n_recognized`, `firewall`
+  (`{gsm8k_base, gsm8k_off}` — equality = intact base);
+- `curve`: one entry per probe point — `k` (facts written so far), `hits` (per-fact 0/1 greedy-recall
+  vector over facts 1..k, index = fid), `margins` (per-fact 2-AFC logprob margin, >0 = recognized;
+  chance = half the stream), `n_recognized`, `cumrecall`, and for CounterFact runs `para_hits`
+  (paraphrase-probe recall).
+
+`analyze.py` column legend: `final` = recalled at last probe (per seed) · `first-miss(med)` = median
+writes between a fact's write and its first miss · `alive` = pooled last-probe recalls ·
+`recover` = recovered/candidates (recovery definition pinned in the docstring) · `recog` = final
+2-AFC counts · `para` = paraphrase recall (CF runs).
+
 ## Honest notes (also in the paper's Limitations)
 
 - Two substrates (Qwen3.5-2B primary; SmolLM2-1.7B-Instruct with hyperparameters carried over
