@@ -37,7 +37,8 @@ def stats(path):
 
 if __name__ == "__main__":
     for mech in ["naked", "bf_N32_dt0.5", "ewc_l300", "replay", "ewcreplay_l300"]:
-        for arm in ["", "_Learly", "_Lmid", "_Llate", "_Pmiss", "_Llate_Pmiss", "_Fcounterfact", "_Pmiss_Fcounterfact"]:
+        for arm in ["", "_Learly", "_Lmid", "_Llate", "_Pmiss", "_Llate_Pmiss", "_Fcounterfact", "_Pmiss_Fcounterfact",
+                    "_MSmolLM217BInst", "_Pmiss_MSmolLM217BInst"]:
             files = sorted(glob.glob(os.path.join(R, f"accum_{mech}{arm}_n48_pe2_s*.json")))
             if not files:
                 continue
@@ -57,3 +58,13 @@ if __name__ == "__main__":
                   f"first-miss(med)={med_fm:g}  alive={alive}/{48*len(files)}  "
                   f"recover={tot_r}/{tot_m} ({pct:.0f}%)  recog={nrec}"
                   + (f"  para={para}" if para else "") + (f"  firewall={fw}" if fw else ""))
+
+    print("--- self-test cadence sweep (miss policy, ewcreplay) ---")
+    for pe in [6, 12]:
+        files = sorted(glob.glob(os.path.join(R, f"accum_ewcreplay_l300_Pmiss_n48_pe{pe}_s*.json")))
+        if not files:
+            continue
+        rows = [stats(f) for f in files]
+        fin = [r[0] for r in rows]
+        tot_r = sum(r[3] for r in rows); tot_m = sum(r[2] for r in rows)
+        print(f"  pe{pe}: final={fin} mean={sum(fin)/len(fin):5.1f}  recover={100*tot_r/max(tot_m,1):3.0f}%")
