@@ -13,10 +13,11 @@ streaming regime with per-fact instrumentation and find:
 2. **Forgetting is erasure or suppression depending on the write protection.** A 2-AFC recognition
    probe (distractors drawn from the same trained stream) shows naked-SGD forgetting is at chance
    (erased), while EWC keeps ~84% of "forgotten" facts discriminable (suppressed).
-3. **Error-gated replay harvests suppressed facts at zero extra budget.** Spending the same 4
+3. **Error-gated replay harvests suppressed facts at zero extra replay budget.** Spending the same 4
    replay steps/turn on self-test failures first: **41–46 of 48 facts (85–96%)** recallable from
-   weights at end of stream, recovery 94%. The gain requires the EWC substrate (latent misses);
-   miss-gating plain replay is within noise.
+   weights at end of stream, recovery 94%. Miss-gating helps every replay-bearing arm on the
+   synthetic stream; the composition (EWC+replay) gains most, consistent with — though not proving —
+   the latent-harvesting mechanism (see paper §4.3).
 4. **The depth gradient is an expression gradient, not a storage gradient.** Recall concentrates in
    the last third of the stack (opposite of the early-layer placement reported for batch injection,
    Back et al. ICML 2026) — but recognition shows the middle third *stores* near full-stack levels
