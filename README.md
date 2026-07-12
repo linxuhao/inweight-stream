@@ -29,7 +29,9 @@ streaming regime with per-fact instrumentation and find:
 7. **A real-entity CounterFact stream** replicates the ladder at higher levels and exposes a
    three-tier readout hierarchy: recognition (~100%) ≫ write-form recall (~90%) ≫ paraphrase (12–31%).
 
-Capability firewall in every run: adapter-off GSM8K == base (+0.00), both substrates, all mechanisms and seeds.
+Capability firewall: adapter-off GSM8K == base (+0.00) wherever measured — all 36 composition
+(ewc+replay) runs across both substrates (`--firewall-n 10`); for the remaining arms it holds by
+construction (frozen base; adapter-off serving is bit-identical to base). See `results/PROVENANCE.md`.
 
 ## Repository layout
 
